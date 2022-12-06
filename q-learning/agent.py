@@ -73,8 +73,6 @@ class QLearnerAgent:
         greedy_action = self.greedy_action(observation)
         if training:
             random_action = np.random.randint(0, 4)
-            if greedy_action:
-                return random_action
             return np.random.choice([greedy_action, random_action], p=[1-self.epsilon, self.epsilon]) # Choose A from S
         else:
             return greedy_action
@@ -89,10 +87,9 @@ class QLearnerAgent:
         :param done: Done flag.
         :param next_obs: The next observation.
         """
-        if not done:
-            old_q = self.q_table[obs, act]
-            new_q = old_q + self.learning_rate * (rew + self.gamma*np.max(self.q_table[next_obs]) - old_q)
-            self.q_table[obs, act] = new_q # update q_value
+        old_q = self.q_table[obs, act]
+        new_q = old_q + self.learning_rate * (rew + (1 - done)*self.gamma*np.max(self.q_table[next_obs]) - old_q) # terminal state has value 0
+        self.q_table[obs, act] = new_q # update q_value
 
     def decay_epsilon(self) -> None:
         if (self.epsilon_decay is not None) and (self.epsilon > self.epsilon_min):
