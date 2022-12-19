@@ -56,10 +56,7 @@ class QLearnerAgent:
         """
         s_row = self.q_table[observation]
         argmax = np.argmax(s_row) # Select action with highest return = index of highest value el. in this array
-        if np.all(s_row == s_row[0]): # return random action to avoid getting stuck in initial state (= whenever all actions yield eq. returns)
-            return np.random.randint(0, 4)
-        else:
-            return argmax
+        return argmax
 
     def act(self, observation: int, training: bool = True) -> int:
         """
