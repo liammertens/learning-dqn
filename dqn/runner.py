@@ -19,22 +19,24 @@ def run_episode(env: Env, agent: DQNAgent, training: bool, gamma) -> float:
     :return: The cumulative discounted reward.
     """
     done = False
-    obs = env.reset()
+    obs, _ = env.reset()
     cum_reward = 0.
     t = 0
     while not done:
         action = agent.act(obs, training)
-        new_obs, reward, done, _ = env.step(action)
+        new_obs, reward, done, _, _ = env.step(action)
         if training:
             agent.learn(obs, action, reward, done, new_obs)
         obs = new_obs
         cum_reward += gamma ** t * reward
         t += 1
+    agent.decay_epsilon()
     return cum_reward
 
 
 def train(env: Env, gamma: float, num_episodes: int, evaluate_every: int, num_evaluation_episodes: int,
-          alpha: float, epsilon_max: Optional[float] = None, epsilon_min: Optional[float] = None,
+          alpha: float, buffer_capacity: int, batch_size:int,
+          epsilon_max: Optional[float] = None, epsilon_min: Optional[float] = None,
           epsilon_decay: Optional[float] = None) -> Tuple[DQNAgent, ndarray, ndarray]:
     """
     Training loop.
@@ -52,7 +54,7 @@ def train(env: Env, gamma: float, num_episodes: int, evaluate_every: int, num_ev
             each evaluation.
     """
     digits = len(str(num_episodes))
-    agent = DQNAgent(4, 2, alpha, gamma, epsilon_max,
+    agent = DQNAgent(4, 2, alpha, gamma, buffer_capacity, batch_size, epsilon_max,
                           epsilon_min, epsilon_decay)
     evaluation_returns = np.zeros(num_episodes // evaluate_every)
     returns = np.zeros(num_episodes)
@@ -72,5 +74,6 @@ def train(env: Env, gamma: float, num_episodes: int, evaluate_every: int, num_ev
 
 if __name__ == '__main__':
     env = gym.make('CartPole-v1')
-    raise NotImplementedError
+    
+    agent, returns, eval_returns = train(env, .99, 1000, 50, 32, .01, 1000, 20, 1.0, .05, .99)
 

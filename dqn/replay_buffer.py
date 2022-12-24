@@ -32,3 +32,4 @@ class ReplayBuffer(object):
         indices = np.random.randint(0, len(self), n)
         return self.states[indices], self.actions[indices], self.rewards[indices], \
                self.dones[indices], self.next_state[indices]
+               
