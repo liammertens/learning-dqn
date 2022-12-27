@@ -97,9 +97,9 @@ if __name__ == '__main__':
     fig1 = plt.figure()
     plt.title("Average returns/100 episodes")
     plt.plot(range(300), avg_returns)
-    fig1.savefig('avg_returns_training')
+    fig1.savefig('lake_avg_returns_training')
 
     fig2 = plt.figure()
     plt.title("Avg evaluation return/eval. episode")
     plt.plot(range(30), evaluation_returns)
-    fig2.savefig('avg_returns_eval.png')
+    fig2.savefig('lake_avg_returns_eval.png')

@@ -30,14 +30,15 @@ def run_episode(env: Env, agent: DQNAgent, training: bool, gamma) -> float:
         obs = new_obs
         cum_reward += gamma ** t * reward
         t += 1
-    agent.decay_epsilon()
+    if training:
+        agent.decay_epsilon()
     return cum_reward
 
 
 def train(env: Env, gamma: float, num_episodes: int, evaluate_every: int, num_evaluation_episodes: int,
           alpha: float, buffer_capacity: int, batch_size:int,
           epsilon_max: Optional[float] = None, epsilon_min: Optional[float] = None,
-          epsilon_decay: Optional[float] = None) -> Tuple[DQNAgent, ndarray, ndarray]:
+          epsilon_decay: Optional[float] = None, soft_update: bool = False) -> Tuple[DQNAgent, ndarray, ndarray]:
     """
     Training loop.
 
@@ -55,7 +56,7 @@ def train(env: Env, gamma: float, num_episodes: int, evaluate_every: int, num_ev
     """
     digits = len(str(num_episodes))
     agent = DQNAgent(4, 2, alpha, gamma, buffer_capacity, batch_size, epsilon_max,
-                          epsilon_min, epsilon_decay)
+                          epsilon_min, epsilon_decay, soft_update)
     evaluation_returns = np.zeros(num_episodes // evaluate_every)
     returns = np.zeros(num_episodes)
     for episode in range(num_episodes):
@@ -71,9 +72,29 @@ def train(env: Env, gamma: float, num_episodes: int, evaluate_every: int, num_ev
                   f"Averaged evaluation return {evaluation_returns[evaluation_step]:0.3}")
     return agent, returns, evaluation_returns
 
+def plot_returns(returns, evaluation_returns):
+    avg_returns = np.zeros(10)
+    cum_ret = 0.0
+    for i in range(1000):
+        cum_ret += returns[i]
+        if (i+1) % 100 == 0:
+            idx = (i+1)//100 - 1
+            avg_returns[idx] = cum_ret/100
+            cum_ret = 0.0
+
+    fig1 = plt.figure()
+    plt.title("Average returns/100 episodes")
+    plt.plot(range(10), avg_returns)
+    fig1.savefig('cartpole_avg_returns_training')
+
+    fig2 = plt.figure()
+    plt.title("Avg evaluation return/eval. episode")
+    plt.plot(range(20), evaluation_returns)
+    fig2.savefig('cartpole_avg_returns_eval.png')
 
 if __name__ == '__main__':
     env = gym.make('CartPole-v1')
     
-    agent, returns, eval_returns = train(env, .99, 1000, 50, 32, .01, 1000, 20, 1.0, .05, .99)
+    agent, returns, eval_returns = train(env, .99, 1000, 50, 32, .01, 10000, 50, 1.0, .05, .99, False)
+    plot_returns(returns, eval_returns)
 

@@ -21,7 +21,8 @@ class DQNAgent:
                  batch_size: int, # has to be smaller than buffer_capacity and evaluate_every in runner.py!
                  epsilon_max: Optional[float] = None,
                  epsilon_min: Optional[float] = None,
-                 epsilon_decay: Optional[float] = None):
+                 epsilon_decay: Optional[float] = None,
+                 soft_update: bool = False):
         """
         :param num_states: Number of states.
         :param num_actions: Number of actions.
@@ -47,7 +48,10 @@ class DQNAgent:
         self.buffer = ReplayBuffer(self.buffer_capacity, tuple([self.obs_dim])) # initialise replay buffer
 
         self.target_nn = QModel(obs_dim, num_actions) # setup w-
+        self.copy_nn()
+
         self.training_steps = 0 # keep count of the amount of training steps done (to replace target network)
+        self.soft_update = soft_update
 
     def greedy_action(self, observation) -> int:
         """
@@ -56,7 +60,7 @@ class DQNAgent:
         :param observation: The observation.
         :return: The action.
         """
-        return torch.argmax(self.nn(observation)).item() # feed the observation through the neural net and convert to int
+        return torch.argmax(self.nn(observation)).item()
 
     def act(self, observation, training: bool = True) -> int:
         """
@@ -84,28 +88,41 @@ class DQNAgent:
         :param done: Done flag.
         :param next_obs: The next observation.
         """
-        self.training_steps += 1
-        if (self.training_steps == 250):
-            self.training_steps = 0
-            self.copy_nn()
 
         self.buffer.add_transition(obs, act, rew, done, next_obs)
 
+        if self.soft_update:
+            # use soft target net updates
+            # Average return does not improve
+            for weight_idx in self.nn.state_dict():
+                self.target_nn.state_dict()[weight_idx] = self.nn.state_dict()[weight_idx] * 0.005 + self.target_nn.state_dict()[weight_idx] * (1 - 0.005)
+        else:
+            self.training_steps += 1
+            if (self.training_steps == 1000): # 1000 chosen as constant, could also be a parameter. 1000 yields best average returns
+                self.training_steps = 0
+                self.copy_nn()
+
         states, actions, rewards, dones, next_states = self.buffer.sample(self.batch_size)
 
-        next_state_action_values = torch.zeros(self.batch_size)
-        for i in range(0, self.batch_size):
-            next_state_action_values[i] = self.gamma*torch.max(self.target_nn(next_states[i])) # gamma*max_qw-(Si+1, A)
-        targets = torch.tensor(torch.tensor(rewards) + next_state_action_values) # R + gamma*maxqw-(Si+1, A)
+        #q(St, a)
+        state_action_values = self.nn(states) # [batch_size, 2]
+        
+        # I tried to use .gather(), but this does not work as expected
+        for i in range(self.batch_size):
+            q = state_action_values[i][actions[i]]
+            state_action_values[i] = q
 
-        action_value_estimates = torch.zeros(self.batch_size)
-        for i in range(0, self.batch_size):
-            action_value_estimates[i] = torch.tensor(self.nn(states[i]), requires_grad=True)[actions[i]] # qw(Si, A)
-
+        # max qw-(St+1, a)
+        with torch.no_grad():
+            next_state_values = self.target_nn(next_states).max(1)[0] # return max entry along axis 1
+            for i in range(self.batch_size):
+                if dones[i]:
+                    next_state_values[i] = 0 # final states should have value of 0
+        targets = torch.tensor(rewards) + self.gamma * next_state_values
 
         criterion = torch.nn.MSELoss()
 
-        loss = criterion(action_value_estimates, targets)
+        loss = criterion(state_action_values[:,0], targets)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
