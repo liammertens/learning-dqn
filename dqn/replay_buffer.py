@@ -6,7 +6,7 @@ class ReplayBuffer(object):
         self.capacity = capacity
         self.states = np.empty((capacity,) + state_shape, dtype=np.float32)
         self.next_state = np.empty((capacity,) + state_shape, dtype=np.float32)
-        self.actions = np.empty((capacity,), dtype=int)
+        self.actions = np.empty((capacity,), dtype=np.int64) # use int64 for compatibility with torch.gather
         self.rewards = np.empty((capacity,), dtype=np.float32)
         self.dones = np.empty((capacity,), dtype=bool)
         self.i = 0

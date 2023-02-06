@@ -98,31 +98,28 @@ class DQNAgent:
                 self.target_nn.state_dict()[weight_idx] = self.nn.state_dict()[weight_idx] * 0.005 + self.target_nn.state_dict()[weight_idx] * (1 - 0.005)
         else:
             self.training_steps += 1
-            if (self.training_steps == 1000): # 1000 chosen as constant, could also be a parameter. 1000 yields best average returns
+            if (self.training_steps == 10000): # chosen as constant, could also be a parameter. 1000 yields best average returns
                 self.training_steps = 0
                 self.copy_nn()
 
+        # sample random transitions from buffer
         states, actions, rewards, dones, next_states = self.buffer.sample(self.batch_size)
 
         #q(St, a)
         state_action_values = self.nn(states) # [batch_size, 2]
         
-        # I tried to use .gather(), but this does not work as expected
-        for i in range(self.batch_size):
-            q = state_action_values[i][actions[i]]
-            state_action_values[i] = q
+        idx = torch.unsqueeze(torch.from_numpy(actions), 1) # expand the dimension of actions to allow for use in torch.gather => [batch_size, 1]
+        estimates = torch.gather(state_action_values, 1, idx) # get correct action_values
+        
 
         # max qw-(St+1, a)
         with torch.no_grad():
-            next_state_values = self.target_nn(next_states).max(1)[0] # return max entry along axis 1
-            for i in range(self.batch_size):
-                if dones[i]:
-                    next_state_values[i] = 0 # final states should have value of 0
-        targets = torch.tensor(rewards) + self.gamma * next_state_values
+            next_state_values, _ = self.target_nn(next_states).max(1) # return max entry along axis 1
+        targets = torch.tensor(rewards) + (self.gamma * next_state_values) # [batch_size]
 
         criterion = torch.nn.MSELoss()
 
-        loss = criterion(state_action_values[:,0], targets)
+        loss = criterion(estimates, targets.unsqueeze(1)) # ensure dimensions are the same
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -136,5 +133,6 @@ class DQNAgent:
                 self.epsilon = new_eps
 
     def copy_nn(self): # replaces w- with w
+        self.learning_rate *= self.learning_rate
         self.target_nn.load_state_dict(self.nn.state_dict())
 

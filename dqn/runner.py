@@ -95,6 +95,6 @@ def plot_returns(returns, evaluation_returns):
 if __name__ == '__main__':
     env = gym.make('CartPole-v1')
     
-    agent, returns, eval_returns = train(env, .99, 1000, 50, 32, .01, 10000, 50, 1.0, .05, .99, False)
+    agent, returns, eval_returns = train(env, .99, 1000, 50, 32, .01, 5000, 32, 1.0, .05, .99, False)
     plot_returns(returns, eval_returns)
 
