@@ -22,7 +22,8 @@ class DQNAgent:
                  epsilon_max: Optional[float] = None,
                  epsilon_min: Optional[float] = None,
                  epsilon_decay: Optional[float] = None,
-                 soft_update: bool = False):
+                 soft_update: bool = False,
+                 weight_copy_rate: int = 3000):
         """
         :param num_states: Number of states.
         :param num_actions: Number of actions.
@@ -48,10 +49,11 @@ class DQNAgent:
         self.buffer = ReplayBuffer(self.buffer_capacity, tuple([self.obs_dim])) # initialise replay buffer
 
         self.target_nn = QModel(obs_dim, num_actions) # setup w-
-        self.copy_nn()
+        #self.copy_nn()
 
         self.training_steps = 0 # keep count of the amount of training steps done (to replace target network)
         self.soft_update = soft_update
+        self.weight_copy_rate = weight_copy_rate
 
     def greedy_action(self, observation) -> int:
         """
@@ -98,7 +100,7 @@ class DQNAgent:
                 self.target_nn.state_dict()[weight_idx] = self.nn.state_dict()[weight_idx] * 0.005 + self.target_nn.state_dict()[weight_idx] * (1 - 0.005)
         else:
             self.training_steps += 1
-            if (self.training_steps == 10000): # chosen as constant, could also be a parameter. 1000 yields best average returns
+            if (self.training_steps == self.weight_copy_rate): # chosen as constant, could also be a parameter
                 self.training_steps = 0
                 self.copy_nn()
 
@@ -108,14 +110,17 @@ class DQNAgent:
         #q(St, a)
         state_action_values = self.nn(states) # [batch_size, 2]
         
-        idx = torch.unsqueeze(torch.from_numpy(actions), 1) # expand the dimension of actions to allow for use in torch.gather => [batch_size, 1]
+        idx = torch.unsqueeze(torch.from_numpy(actions), 1) # expand the nr of dimensions of actions to allow for use in torch.gather => [batch_size, 1]
         estimates = torch.gather(state_action_values, 1, idx) # get correct action_values
-        
+    
 
         # max qw-(St+1, a)
         with torch.no_grad():
-            next_state_values, _ = self.target_nn(next_states).max(1) # return max entry along axis 1
-        targets = torch.tensor(rewards) + (self.gamma * next_state_values) # [batch_size]
+            next_state_values= self.target_nn(next_states).max(1)[0] # return max entry along axis 1
+            for i in range(31):
+                if dones[i]:
+                    next_state_values[i] = 0 # ensure final states have target value of 0 !!!!
+        targets = torch.from_numpy(rewards) + (self.gamma * next_state_values)# [batch_size]
 
         criterion = torch.nn.MSELoss()
 
@@ -134,5 +139,7 @@ class DQNAgent:
 
     def copy_nn(self): # replaces w- with w
         self.learning_rate *= self.learning_rate
+        #self.weight_copy_rate *= 2
+        print("Copied weights")
         self.target_nn.load_state_dict(self.nn.state_dict())
 
